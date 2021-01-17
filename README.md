@@ -92,6 +92,14 @@ print(table(headers, rows, max_width=10))
 
 **Styles:** `"unicode"`, `"ascii"`, `"markdown"`, `"minimal"`, `"compact"`
 
+
+## Development
+
+```bash
+pip install -e .
+python -m pytest tests/ -v
+```
+
 ## License
 
 MIT
