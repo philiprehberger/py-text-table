@@ -24,9 +24,10 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/philiprehberger/py-text-table"
+Homepage = "https://github.com/philiprehberger/py-text-table#readme"
 Repository = "https://github.com/philiprehberger/py-text-table"
 Issues = "https://github.com/philiprehberger/py-text-table/issues"
+Changelog = "https://github.com/philiprehberger/py-text-table/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/philiprehberger_text_table"]
