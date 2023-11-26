@@ -3,6 +3,7 @@
 [![Tests](https://github.com/philiprehberger/py-text-table/actions/workflows/publish.yml/badge.svg)](https://github.com/philiprehberger/py-text-table/actions/workflows/publish.yml)
 [![PyPI version](https://img.shields.io/pypi/v/philiprehberger-text-table.svg)](https://pypi.org/project/philiprehberger-text-table/)
 [![License](https://img.shields.io/github/license/philiprehberger/py-text-table)](LICENSE)
+[![Sponsor](https://img.shields.io/badge/sponsor-GitHub%20Sponsors-ec6cb9)](https://github.com/sponsors/philiprehberger)
 
 Render data as clean ASCII/Unicode tables in the terminal with zero configuration.
 
