@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "philiprehberger-text-table"
-version = "0.1.1"
+version = "0.1.2"
 description = "Render data as clean ASCII/Unicode tables in the terminal with zero configuration"
 readme = "README.md"
 license = "MIT"
