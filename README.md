@@ -6,7 +6,7 @@
 
 Render data as clean ASCII/Unicode tables in the terminal with zero configuration.
 
-## Install
+## Installation
 
 ```bash
 pip install philiprehberger-text-table
