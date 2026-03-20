@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "philiprehberger-text-table"
-version = "0.1.6"
+version = "0.1.7"
 description = "Render data as clean ASCII/Unicode tables in the terminal with zero configuration"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [{ name = "Philip Rehberger" }]
-keywords = ["table", "terminal", "ascii", "unicode", "cli", "format"]
+keywords = ["table", "terminal", "ascii", "cli", "format"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
