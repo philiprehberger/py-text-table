@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import csv
+import io
 from typing import Any
 
-__all__ = ["table", "from_dicts", "from_csv"]
+__all__ = ["table", "from_dicts", "from_csv", "from_csv_string"]
 
 _STYLES: dict[str, dict[str, str]] = {
     "unicode": {
@@ -111,6 +112,8 @@ def _format_cell(value: Any, width: int, align: str) -> str:
     text = str(value)
     if align == "right":
         return text.rjust(width)
+    if align == "center":
+        return text.center(width)
     return text.ljust(width)
 
 
@@ -130,6 +133,7 @@ def table(
     *,
     style: str = "unicode",
     max_width: int | None = None,
+    align: str | list[str] | None = None,
 ) -> str:
     """Render a table string from headers and rows.
 
@@ -139,10 +143,16 @@ def table(
         style: Table style — "unicode", "ascii", "markdown", "minimal", or "compact".
         max_width: Optional maximum width per cell. Cells exceeding this are truncated
             with "..." appended.
+        align: Column alignment override. A single string ("left", "right", "center")
+            applies to all columns. A list of strings sets alignment per column.
+            When ``None`` (default), numeric columns are right-aligned and others
+            are left-aligned.
 
     Returns:
         A formatted table string.
     """
+    _valid_alignments = {"left", "right", "center"}
+
     if style not in _STYLES:
         raise ValueError(
             f"Unknown style {style!r}. Choose from: {', '.join(_STYLES)}"
@@ -157,15 +167,35 @@ def table(
 
     widths = _calculate_widths(headers, rows)
 
-    # Determine alignment per column (right for numeric columns)
     col_count = len(headers)
-    alignments: list[str] = []
-    for col in range(col_count):
-        col_values = [row[col] for row in rows if col < len(row)]
-        if col_values and all(_is_numeric(v) for v in col_values):
-            alignments.append("right")
-        else:
-            alignments.append("left")
+
+    # Determine alignment per column
+    if align is None:
+        # Auto-detect: right for numeric columns, left otherwise
+        alignments: list[str] = []
+        for col in range(col_count):
+            col_values = [row[col] for row in rows if col < len(row)]
+            if col_values and all(_is_numeric(v) for v in col_values):
+                alignments.append("right")
+            else:
+                alignments.append("left")
+    elif isinstance(align, str):
+        if align not in _valid_alignments:
+            raise ValueError(
+                f"Unknown alignment {align!r}. Choose from: {', '.join(sorted(_valid_alignments))}"
+            )
+        alignments = [align] * col_count
+    else:
+        if len(align) != col_count:
+            raise ValueError(
+                f"align list length ({len(align)}) must match header count ({col_count})"
+            )
+        for a in align:
+            if a not in _valid_alignments:
+                raise ValueError(
+                    f"Unknown alignment {a!r}. Choose from: {', '.join(sorted(_valid_alignments))}"
+                )
+        alignments = list(align)
 
     lines: list[str] = []
 
@@ -199,6 +229,8 @@ def table(
         for i in range(col_count):
             if alignments[i] == "right":
                 sep_cells.append(" " + s["horizontal"] * (widths[i] - 1) + ":" + " ")
+            elif alignments[i] == "center":
+                sep_cells.append(" :" + s["horizontal"] * (widths[i] - 2) + ":" + " ")
             else:
                 sep_cells.append(" " + s["horizontal"] * widths[i] + " ")
         lines.append(s["vertical"] + s["vertical"].join(sep_cells) + s["vertical"])
@@ -277,6 +309,7 @@ def from_dicts(
     *,
     style: str = "unicode",
     max_width: int | None = None,
+    align: str | list[str] | None = None,
 ) -> str:
     """Render a table from a list of dictionaries.
 
@@ -287,6 +320,7 @@ def from_dicts(
         data: List of dictionaries with consistent keys.
         style: Table style.
         max_width: Optional maximum cell width.
+        align: Column alignment override (see :func:`table`).
 
     Returns:
         A formatted table string.
@@ -300,7 +334,7 @@ def from_dicts(
                 seen[key] = None
     headers = list(seen)
     rows = [[d.get(h, "") for h in headers] for d in data]
-    return table(headers, rows, style=style, max_width=max_width)
+    return table(headers, rows, style=style, max_width=max_width, align=align)
 
 
 def from_csv(
@@ -308,6 +342,7 @@ def from_csv(
     *,
     style: str = "unicode",
     max_width: int | None = None,
+    align: str | list[str] | None = None,
 ) -> str:
     """Read a CSV file and render it as a table.
 
@@ -317,6 +352,7 @@ def from_csv(
         path: Path to the CSV file.
         style: Table style.
         max_width: Optional maximum cell width.
+        align: Column alignment override (see :func:`table`).
 
     Returns:
         A formatted table string.
@@ -326,4 +362,31 @@ def from_csv(
         rows_iter = iter(reader)
         headers = next(rows_iter)
         rows = list(rows_iter)
-    return table(headers, rows, style=style, max_width=max_width)
+    return table(headers, rows, style=style, max_width=max_width, align=align)
+
+
+def from_csv_string(
+    text: str,
+    *,
+    style: str = "unicode",
+    max_width: int | None = None,
+    align: str | list[str] | None = None,
+) -> str:
+    """Render a table from CSV-formatted string content.
+
+    The first row of the CSV is used as headers.
+
+    Args:
+        text: CSV-formatted string.
+        style: Table style.
+        max_width: Optional maximum cell width.
+        align: Column alignment override (see :func:`table`).
+
+    Returns:
+        A formatted table string.
+    """
+    reader = csv.reader(io.StringIO(text))
+    rows_iter = iter(reader)
+    headers = next(rows_iter)
+    rows = list(rows_iter)
+    return table(headers, rows, style=style, max_width=max_width, align=align)

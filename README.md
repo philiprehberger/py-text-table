@@ -76,6 +76,25 @@ print(table(headers, rows, style="minimal"))
 print(table(headers, rows, style="compact"))
 ```
 
+### Column alignment
+
+```python
+# Override auto-detection for all columns
+print(table(headers, rows, align="center"))
+
+# Per-column alignment
+print(table(headers, rows, align=["left", "center", "right"]))
+```
+
+### From CSV string
+
+```python
+from philiprehberger_text_table import from_csv_string
+
+csv_data = "Name,Age\nAlice,30\nBob,25"
+print(from_csv_string(csv_data))
+```
+
 ### Truncation
 
 ```python
@@ -86,11 +105,14 @@ print(table(headers, rows, max_width=10))
 
 | Function | Description |
 |----------|-------------|
-| `table(headers, rows, *, style="unicode", max_width=None)` | Render a table from headers and row data |
-| `from_dicts(data, *, style="unicode", max_width=None)` | Render a table from a list of dictionaries |
-| `from_csv(path, *, style="unicode", max_width=None)` | Read a CSV file and render as a table |
+| `table(headers, rows, *, style="unicode", max_width=None, align=None)` | Render a table from headers and row data |
+| `from_dicts(data, *, style="unicode", max_width=None, align=None)` | Render a table from a list of dictionaries |
+| `from_csv(path, *, style="unicode", max_width=None, align=None)` | Read a CSV file and render as a table |
+| `from_csv_string(text, *, style="unicode", max_width=None, align=None)` | Render a table from CSV string content |
 
 **Styles:** `"unicode"`, `"ascii"`, `"markdown"`, `"minimal"`, `"compact"`
+
+**Alignments:** `"left"`, `"right"`, `"center"` (default: auto-detect, numeric columns right-aligned)
 
 ## Development
 
