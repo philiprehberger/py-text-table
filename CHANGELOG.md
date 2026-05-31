@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0 (2026-05-30)
+
+- Add `to_csv()` for rendering data back to CSV (round-trips with `from_csv`)
+- Add `column_widths()` exposing the renderer's computed per-column widths
+
 ## 0.2.0 (2026-04-11)
 
 - Add `align` parameter to `table()`, `from_dicts()`, and `from_csv()` for explicit column alignment control

@@ -7,7 +7,14 @@ import tempfile
 
 import pytest
 
-from philiprehberger_text_table import from_csv, from_csv_string, from_dicts, table
+from philiprehberger_text_table import (
+    column_widths,
+    from_csv,
+    from_csv_string,
+    from_dicts,
+    table,
+    to_csv,
+)
 
 
 HEADERS = ["Name", "Age", "City"]
@@ -243,3 +250,51 @@ class TestEdgeCases:
         for style in ("unicode", "ascii", "markdown", "minimal", "compact"):
             result = table(["H"], [["v"]], style=style)
             assert "v" in result
+
+
+class TestToCsv:
+    def test_basic_with_headers(self) -> None:
+        result = to_csv([["a", 1], ["b", 2]], headers=["name", "count"])
+        assert result == "name,count\r\na,1\r\nb,2\r\n"
+
+    def test_empty(self) -> None:
+        assert to_csv([]) == ""
+
+    def test_file_round_trip(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        out = tmp_path / "out.csv"
+        csv_string = to_csv(
+            [["Alice", 30], ["Bob", 25]],
+            headers=["Name", "Age"],
+            file=out,
+        )
+        # File bytes match exactly (read_text would apply universal-newline
+        # translation, masking the \r\n line terminators csv.writer emits).
+        assert out.read_bytes() == csv_string.encode("utf-8")
+        rendered = from_csv(str(out))
+        assert "Alice" in rendered
+        assert "Bob" in rendered
+        assert "30" in rendered
+
+    def test_no_headers(self) -> None:
+        result = to_csv([["a", "b"], ["c", "d"]])
+        assert result == "a,b\r\nc,d\r\n"
+
+    def test_coerces_non_strings(self) -> None:
+        result = to_csv([[1, 2.5]], headers=["x", "y"])
+        assert result == "x,y\r\n1,2.5\r\n"
+
+
+class TestColumnWidths:
+    def test_basic(self) -> None:
+        widths = column_widths(["name", "count"], [["alice", 100], ["bob", 5]])
+        assert widths == [5, 5]
+
+    def test_empty(self) -> None:
+        assert column_widths([], []) == []
+
+    def test_headers_only(self) -> None:
+        assert column_widths(["abc", "de"], []) == [3, 2]
+
+    def test_missing_cells_treated_as_empty(self) -> None:
+        widths = column_widths(["a", "bb", "ccc"], [["x"]])
+        assert widths == [1, 2, 3]

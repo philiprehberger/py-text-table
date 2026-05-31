@@ -101,6 +101,34 @@ print(from_csv_string(csv_data))
 print(table(headers, rows, max_width=10))
 ```
 
+### Round-tripping CSV
+
+```python
+from philiprehberger_text_table import to_csv, from_csv
+
+csv_text = to_csv(
+    [["Alice", 30], ["Bob", 25]],
+    headers=["Name", "Age"],
+    file="people.csv",  # optional — also writes to disk
+)
+print(csv_text)
+# Name,Age
+# Alice,30
+# Bob,25
+
+# Re-read and render
+print(from_csv("people.csv"))
+```
+
+### Computing column widths
+
+```python
+from philiprehberger_text_table import column_widths
+
+widths = column_widths(["name", "count"], [["alice", 100], ["bob", 5]])
+# [5, 5]  — max of header and cell str-lengths per column
+```
+
 ## API
 
 | Function | Description |
@@ -109,6 +137,8 @@ print(table(headers, rows, max_width=10))
 | `from_dicts(data, *, style="unicode", max_width=None, align=None)` | Render a table from a list of dictionaries |
 | `from_csv(path, *, style="unicode", max_width=None, align=None)` | Read a CSV file and render as a table |
 | `from_csv_string(text, *, style="unicode", max_width=None, align=None)` | Render a table from CSV string content |
+| `to_csv(rows, *, headers=None, file=None)` | Render rows back to a CSV string (round-trips with `from_csv`); optionally writes to a file |
+| `column_widths(headers, rows)` | Return the per-column widths the renderer would compute |
 
 **Styles:** `"unicode"`, `"ascii"`, `"markdown"`, `"minimal"`, `"compact"`
 

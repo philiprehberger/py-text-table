@@ -4,9 +4,17 @@ from __future__ import annotations
 
 import csv
 import io
+from pathlib import Path
 from typing import Any
 
-__all__ = ["table", "from_dicts", "from_csv", "from_csv_string"]
+__all__ = [
+    "table",
+    "from_dicts",
+    "from_csv",
+    "from_csv_string",
+    "to_csv",
+    "column_widths",
+]
 
 _STYLES: dict[str, dict[str, str]] = {
     "unicode": {
@@ -390,3 +398,48 @@ def from_csv_string(
     headers = next(rows_iter)
     rows = list(rows_iter)
     return table(headers, rows, style=style, max_width=max_width, align=align)
+
+
+def to_csv(
+    rows: list[list[Any]],
+    *,
+    headers: list[str] | None = None,
+    file: str | Path | None = None,
+) -> str:
+    """Render *rows* as CSV. Round-trips with from_csv().
+
+    Args:
+        rows: 2D row data.
+        headers: Optional header row.
+        file: If provided, write the CSV to this path (and still return the string).
+
+    Returns:
+        The full CSV string (including the header row when *headers* is given).
+    """
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    if headers is not None:
+        writer.writerow([str(h) for h in headers])
+    writer.writerows([[str(cell) for cell in row] for row in rows])
+    result = buf.getvalue()
+    if file is not None:
+        Path(file).write_text(result, encoding="utf-8")
+    return result
+
+
+def column_widths(headers: list[str], rows: list[list[Any]]) -> list[int]:
+    """Compute the per-column widths the renderer would use.
+
+    Returns:
+        List of widths, one per column, equal to the max str-length across
+        the header and every cell in that column.
+    """
+    if not headers and not rows:
+        return []
+    col_count = max(len(headers), *(len(row) for row in rows)) if rows else len(headers)
+    widths: list[int] = []
+    for i in range(col_count):
+        header_len = len(str(headers[i])) if i < len(headers) else 0
+        cell_lens = [len(str(row[i])) if i < len(row) else 0 for row in rows]
+        widths.append(max(header_len, *cell_lens) if cell_lens else header_len)
+    return widths
