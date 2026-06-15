@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0 (2026-06-14)
+
+- Add `from_json()` and `from_json_string()` for rendering tables from JSON (accepts list of dicts or list of lists with a leading header row)
+- Add `"rounded"` style with rounded Unicode corners (╭ ╮ ╰ ╯)
+
 ## 0.3.0 (2026-05-30)
 
 - Add `to_csv()` for rendering data back to CSV (round-trips with `from_csv`)

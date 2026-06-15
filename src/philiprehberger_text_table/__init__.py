@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,8 @@ __all__ = [
     "from_dicts",
     "from_csv",
     "from_csv_string",
+    "from_json",
+    "from_json_string",
     "to_csv",
     "column_widths",
 ]
@@ -27,6 +30,20 @@ _STYLES: dict[str, dict[str, str]] = {
         "bot_left": "\u2514",
         "bot_mid": "\u2534",
         "bot_right": "\u2518",
+        "horizontal": "\u2500",
+        "vertical": "\u2502",
+        "cross": "\u253c",
+    },
+    "rounded": {
+        "top_left": "\u256d",
+        "top_mid": "\u252c",
+        "top_right": "\u256e",
+        "mid_left": "\u251c",
+        "mid_mid": "\u253c",
+        "mid_right": "\u2524",
+        "bot_left": "\u2570",
+        "bot_mid": "\u2534",
+        "bot_right": "\u256f",
         "horizontal": "\u2500",
         "vertical": "\u2502",
         "cross": "\u253c",
@@ -148,7 +165,7 @@ def table(
     Args:
         headers: Column header strings.
         rows: List of rows, each a list of cell values.
-        style: Table style — "unicode", "ascii", "markdown", "minimal", or "compact".
+        style: Table style — "unicode", "rounded", "ascii", "markdown", "minimal", or "compact".
         max_width: Optional maximum width per cell. Cells exceeding this are truncated
             with "..." appended.
         align: Column alignment override. A single string ("left", "right", "center")
@@ -398,6 +415,81 @@ def from_csv_string(
     headers = next(rows_iter)
     rows = list(rows_iter)
     return table(headers, rows, style=style, max_width=max_width, align=align)
+
+
+def _render_json_payload(
+    payload: Any,
+    *,
+    style: str,
+    max_width: int | None,
+    align: str | list[str] | None,
+) -> str:
+    if isinstance(payload, list) and all(isinstance(item, dict) for item in payload):
+        return from_dicts(payload, style=style, max_width=max_width, align=align)
+    if isinstance(payload, list) and all(isinstance(item, list) for item in payload):
+        if not payload:
+            return ""
+        headers = [str(h) for h in payload[0]]
+        rows = [list(row) for row in payload[1:]]
+        return table(headers, rows, style=style, max_width=max_width, align=align)
+    raise ValueError(
+        "Unsupported JSON shape: expected a list of dicts or a list of lists"
+    )
+
+
+def from_json(
+    path: str | Path,
+    *,
+    style: str = "unicode",
+    max_width: int | None = None,
+    align: str | list[str] | None = None,
+) -> str:
+    """Read a JSON file and render it as a table.
+
+    Accepts either a list of dicts (keys become headers in first-seen order)
+    or a list of lists where the first inner list is the header row.
+
+    Args:
+        path: Path to the JSON file.
+        style: Table style.
+        max_width: Optional maximum cell width.
+        align: Column alignment override (see :func:`table`).
+
+    Returns:
+        A formatted table string.
+
+    Raises:
+        ValueError: If the JSON payload is neither a list of dicts nor a list of lists.
+    """
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    return _render_json_payload(payload, style=style, max_width=max_width, align=align)
+
+
+def from_json_string(
+    text: str,
+    *,
+    style: str = "unicode",
+    max_width: int | None = None,
+    align: str | list[str] | None = None,
+) -> str:
+    """Render a table from JSON-formatted string content.
+
+    Accepts either a list of dicts or a list of lists with a leading header row.
+
+    Args:
+        text: JSON-formatted string.
+        style: Table style.
+        max_width: Optional maximum cell width.
+        align: Column alignment override (see :func:`table`).
+
+    Returns:
+        A formatted table string.
+
+    Raises:
+        ValueError: If the JSON payload is neither a list of dicts nor a list of lists.
+    """
+    payload = json.loads(text)
+    return _render_json_payload(payload, style=style, max_width=max_width, align=align)
 
 
 def to_csv(

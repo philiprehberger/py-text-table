@@ -74,6 +74,9 @@ print(table(headers, rows, style="minimal"))
 
 # Compact style (no outer borders)
 print(table(headers, rows, style="compact"))
+
+# Rounded Unicode corners
+print(table(headers, rows, style="rounded"))
 ```
 
 ### Column alignment
@@ -93,6 +96,21 @@ from philiprehberger_text_table import from_csv_string
 
 csv_data = "Name,Age\nAlice,30\nBob,25"
 print(from_csv_string(csv_data))
+```
+
+### From JSON
+
+```python
+from philiprehberger_text_table import from_json, from_json_string
+
+# List of dicts (keys become headers)
+print(from_json_string('[{"name":"Alice","age":30},{"name":"Bob","age":25}]'))
+
+# List of lists (first inner list is the header row)
+print(from_json_string('[["Name","Age"],["Alice",30],["Bob",25]]'))
+
+# Read from a file
+print(from_json("data.json"))
 ```
 
 ### Truncation
@@ -137,10 +155,12 @@ widths = column_widths(["name", "count"], [["alice", 100], ["bob", 5]])
 | `from_dicts(data, *, style="unicode", max_width=None, align=None)` | Render a table from a list of dictionaries |
 | `from_csv(path, *, style="unicode", max_width=None, align=None)` | Read a CSV file and render as a table |
 | `from_csv_string(text, *, style="unicode", max_width=None, align=None)` | Render a table from CSV string content |
+| `from_json(path, *, style="unicode", max_width=None, align=None)` | Read a JSON file and render as a table (list of dicts or list of lists) |
+| `from_json_string(text, *, style="unicode", max_width=None, align=None)` | Render a table from a JSON string |
 | `to_csv(rows, *, headers=None, file=None)` | Render rows back to a CSV string (round-trips with `from_csv`); optionally writes to a file |
 | `column_widths(headers, rows)` | Return the per-column widths the renderer would compute |
 
-**Styles:** `"unicode"`, `"ascii"`, `"markdown"`, `"minimal"`, `"compact"`
+**Styles:** `"unicode"`, `"rounded"`, `"ascii"`, `"markdown"`, `"minimal"`, `"compact"`
 
 **Alignments:** `"left"`, `"right"`, `"center"` (default: auto-detect, numeric columns right-aligned)
 

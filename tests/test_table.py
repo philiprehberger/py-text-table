@@ -12,6 +12,8 @@ from philiprehberger_text_table import (
     from_csv,
     from_csv_string,
     from_dicts,
+    from_json,
+    from_json_string,
     table,
     to_csv,
 )
@@ -282,6 +284,81 @@ class TestToCsv:
     def test_coerces_non_strings(self) -> None:
         result = to_csv([[1, 2.5]], headers=["x", "y"])
         assert result == "x,y\r\n1,2.5\r\n"
+
+
+class TestRoundedStyle:
+    def test_rounded_corners(self) -> None:
+        result = table(HEADERS, ROWS, style="rounded")
+        # rounded corners
+        assert "╭" in result  # ╭
+        assert "╮" in result  # ╮
+        assert "╯" in result  # ╯
+        assert "╰" in result  # ╰
+        # square corners must not appear
+        assert "┌" not in result  # ┌
+        assert "┐" not in result  # ┐
+
+    def test_rounded_renders_data(self) -> None:
+        result = table(HEADERS, ROWS, style="rounded")
+        assert "Alice" in result
+        assert "30" in result
+
+    def test_rounded_listed_in_styles(self) -> None:
+        result = table(["H"], [["v"]], style="rounded")
+        assert "v" in result
+
+
+class TestFromJsonString:
+    def test_list_of_dicts(self) -> None:
+        text = '[{"name":"Alice","age":30},{"name":"Bob","age":25}]'
+        result = from_json_string(text)
+        assert "Alice" in result
+        assert "30" in result
+        assert "Bob" in result
+
+    def test_list_of_lists_with_header(self) -> None:
+        text = '[["Name","Age"],["Alice",30],["Bob",25]]'
+        result = from_json_string(text)
+        assert "Name" in result
+        assert "Alice" in result
+        assert "25" in result
+
+    def test_empty_list_of_lists(self) -> None:
+        assert from_json_string("[]") == ""
+
+    def test_with_style(self) -> None:
+        result = from_json_string('[{"a":1}]', style="markdown")
+        assert "|" in result
+
+    def test_unsupported_shape(self) -> None:
+        with pytest.raises(ValueError, match="Unsupported JSON shape"):
+            from_json_string('{"a": 1}')
+
+    def test_mixed_list_raises(self) -> None:
+        with pytest.raises(ValueError, match="Unsupported JSON shape"):
+            from_json_string('[{"a":1}, ["b", 2]]')
+
+
+class TestFromJson:
+    def test_list_of_dicts(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        path = tmp_path / "data.json"
+        path.write_text('[{"name":"Alice","age":30}]', encoding="utf-8")
+        result = from_json(str(path))
+        assert "Alice" in result
+        assert "30" in result
+
+    def test_list_of_lists(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        path = tmp_path / "data.json"
+        path.write_text('[["A","B"],["x","y"]]', encoding="utf-8")
+        result = from_json(path)
+        assert "A" in result
+        assert "x" in result
+
+    def test_with_max_width(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        path = tmp_path / "data.json"
+        path.write_text('[{"col":"VeryLongValueHere"}]', encoding="utf-8")
+        result = from_json(str(path), max_width=8)
+        assert "..." in result
 
 
 class TestColumnWidths:
