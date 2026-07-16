@@ -7,6 +7,8 @@ import tempfile
 
 import pytest
 
+import json
+
 from philiprehberger_text_table import (
     column_widths,
     from_csv,
@@ -16,6 +18,7 @@ from philiprehberger_text_table import (
     from_json_string,
     table,
     to_csv,
+    to_json,
 )
 
 
@@ -359,6 +362,54 @@ class TestFromJson:
         path.write_text('[{"col":"VeryLongValueHere"}]', encoding="utf-8")
         result = from_json(str(path), max_width=8)
         assert "..." in result
+
+
+class TestDoubleStyle:
+    def test_double_corners(self) -> None:
+        result = table(HEADERS, ROWS, style="double")
+        for ch in ("╔", "╗", "╚", "╝", "║", "═", "╬"):
+            assert ch in result
+        # single-line corners must not appear
+        assert "┌" not in result
+        assert "│" not in result
+
+    def test_double_renders_data(self) -> None:
+        result = table(HEADERS, ROWS, style="double")
+        assert "Alice" in result
+        assert "30" in result
+
+
+class TestToJson:
+    def test_with_headers_is_list_of_dicts(self) -> None:
+        result = to_json([["Alice", 30], ["Bob", 25]], headers=["name", "age"])
+        assert json.loads(result) == [
+            {"name": "Alice", "age": 30},
+            {"name": "Bob", "age": 25},
+        ]
+
+    def test_without_headers_is_list_of_lists(self) -> None:
+        result = to_json([["a", 1], ["b", 2]])
+        assert json.loads(result) == [["a", 1], ["b", 2]]
+
+    def test_round_trips_with_from_json_string(self) -> None:
+        rows = [["Alice", 30], ["Bob", 25]]
+        text = to_json(rows, headers=["name", "age"])
+        rendered = from_json_string(text)
+        assert "Alice" in rendered
+        assert "30" in rendered
+
+    def test_missing_cells_default_to_empty(self) -> None:
+        result = to_json([["Alice"]], headers=["name", "age"])
+        assert json.loads(result) == [{"name": "Alice", "age": ""}]
+
+    def test_writes_file(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        path = tmp_path / "out.json"
+        to_json([["a", 1]], headers=["x", "y"], file=str(path))
+        assert json.loads(path.read_text(encoding="utf-8")) == [{"x": "a", "y": 1}]
+
+    def test_compact_indent_none(self) -> None:
+        result = to_json([["a", 1]], headers=["x", "y"], indent=None)
+        assert "\n" not in result
 
 
 class TestColumnWidths:

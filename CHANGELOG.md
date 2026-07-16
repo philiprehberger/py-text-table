@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 (2026-07-15)
+
+- Add `"double"` style with double-line box-drawing borders (╔ ═ ╗ ║ ╠ ╣ ╚ ╝)
+- Add `to_json()` for rendering rows back to JSON (round-trips with `from_json`; list of dicts or list of lists)
+- Add README card image for registry rendering
+
 ## 0.4.0 (2026-06-14)
 
 - Add `from_json()` and `from_json_string()` for rendering tables from JSON (accepts list of dicts or list of lists with a leading header row)

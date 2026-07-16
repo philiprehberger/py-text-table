@@ -16,6 +16,7 @@ __all__ = [
     "from_json",
     "from_json_string",
     "to_csv",
+    "to_json",
     "column_widths",
 ]
 
@@ -47,6 +48,20 @@ _STYLES: dict[str, dict[str, str]] = {
         "horizontal": "\u2500",
         "vertical": "\u2502",
         "cross": "\u253c",
+    },
+    "double": {
+        "top_left": "\u2554",
+        "top_mid": "\u2566",
+        "top_right": "\u2557",
+        "mid_left": "\u2560",
+        "mid_mid": "\u256c",
+        "mid_right": "\u2563",
+        "bot_left": "\u255a",
+        "bot_mid": "\u2569",
+        "bot_right": "\u255d",
+        "horizontal": "\u2550",
+        "vertical": "\u2551",
+        "cross": "\u256c",
     },
     "ascii": {
         "top_left": "+",
@@ -165,7 +180,7 @@ def table(
     Args:
         headers: Column header strings.
         rows: List of rows, each a list of cell values.
-        style: Table style — "unicode", "rounded", "ascii", "markdown", "minimal", or "compact".
+        style: Table style — "unicode", "rounded", "double", "ascii", "markdown", "minimal", or "compact".
         max_width: Optional maximum width per cell. Cells exceeding this are truncated
             with "..." appended.
         align: Column alignment override. A single string ("left", "right", "center")
@@ -514,6 +529,45 @@ def to_csv(
         writer.writerow([str(h) for h in headers])
     writer.writerows([[str(cell) for cell in row] for row in rows])
     result = buf.getvalue()
+    if file is not None:
+        Path(file).write_text(result, encoding="utf-8")
+    return result
+
+
+def to_json(
+    rows: list[list[Any]],
+    *,
+    headers: list[str] | None = None,
+    file: str | Path | None = None,
+    indent: int | None = 2,
+) -> str:
+    """Render *rows* as a JSON array. Round-trips with from_json().
+
+    When *headers* is given, each row becomes an object keyed by the headers
+    (matching the list-of-dicts shape ``from_json`` accepts). Extra cells beyond
+    the header count are dropped and missing cells default to ``""``. Without
+    *headers*, the output is a plain array of arrays.
+
+    Args:
+        rows: 2D row data.
+        headers: Optional header row used as object keys.
+        file: If provided, write the JSON to this path (and still return it).
+        indent: Indentation passed to ``json.dumps``. Use ``None`` for compact
+            output.
+
+    Returns:
+        The JSON string.
+    """
+    payload: Any
+    if headers is not None:
+        keys = [str(h) for h in headers]
+        payload = [
+            {keys[i]: (row[i] if i < len(row) else "") for i in range(len(keys))}
+            for row in rows
+        ]
+    else:
+        payload = [list(row) for row in rows]
+    result = json.dumps(payload, indent=indent, ensure_ascii=False, default=str)
     if file is not None:
         Path(file).write_text(result, encoding="utf-8")
     return result

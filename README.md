@@ -4,6 +4,8 @@
 [![PyPI version](https://img.shields.io/pypi/v/philiprehberger-text-table.svg)](https://pypi.org/project/philiprehberger-text-table/)
 [![Last updated](https://img.shields.io/github/last-commit/philiprehberger/py-text-table)](https://github.com/philiprehberger/py-text-table/commits/main)
 
+![philiprehberger-text-table](https://raw.githubusercontent.com/philiprehberger/py-text-table/main/package-card.webp)
+
 Render data as clean ASCII/Unicode tables in the terminal with zero configuration.
 
 ## Installation
@@ -77,6 +79,9 @@ print(table(headers, rows, style="compact"))
 
 # Rounded Unicode corners
 print(table(headers, rows, style="rounded"))
+
+# Double-line borders
+print(table(headers, rows, style="double"))
 ```
 
 ### Column alignment
@@ -138,6 +143,25 @@ print(csv_text)
 print(from_csv("people.csv"))
 ```
 
+### Round-tripping JSON
+
+```python
+from philiprehberger_text_table import to_json, from_json_string
+
+json_text = to_json(
+    [["Alice", 30], ["Bob", 25]],
+    headers=["name", "age"],  # omit for a plain array of arrays
+)
+print(json_text)
+# [
+#   {"name": "Alice", "age": 30},
+#   {"name": "Bob", "age": 25}
+# ]
+
+# Re-render as a table
+print(from_json_string(json_text))
+```
+
 ### Computing column widths
 
 ```python
@@ -149,8 +173,8 @@ widths = column_widths(["name", "count"], [["alice", 100], ["bob", 5]])
 
 ## API
 
-| Function | Description |
-|----------|-------------|
+| Function / Class | Description |
+|------------------|-------------|
 | `table(headers, rows, *, style="unicode", max_width=None, align=None)` | Render a table from headers and row data |
 | `from_dicts(data, *, style="unicode", max_width=None, align=None)` | Render a table from a list of dictionaries |
 | `from_csv(path, *, style="unicode", max_width=None, align=None)` | Read a CSV file and render as a table |
@@ -158,9 +182,10 @@ widths = column_widths(["name", "count"], [["alice", 100], ["bob", 5]])
 | `from_json(path, *, style="unicode", max_width=None, align=None)` | Read a JSON file and render as a table (list of dicts or list of lists) |
 | `from_json_string(text, *, style="unicode", max_width=None, align=None)` | Render a table from a JSON string |
 | `to_csv(rows, *, headers=None, file=None)` | Render rows back to a CSV string (round-trips with `from_csv`); optionally writes to a file |
+| `to_json(rows, *, headers=None, file=None, indent=2)` | Render rows to a JSON string (round-trips with `from_json`); optionally writes to a file |
 | `column_widths(headers, rows)` | Return the per-column widths the renderer would compute |
 
-**Styles:** `"unicode"`, `"rounded"`, `"ascii"`, `"markdown"`, `"minimal"`, `"compact"`
+**Styles:** `"unicode"`, `"rounded"`, `"double"`, `"ascii"`, `"markdown"`, `"minimal"`, `"compact"`
 
 **Alignments:** `"left"`, `"right"`, `"center"` (default: auto-detect, numeric columns right-aligned)
 
