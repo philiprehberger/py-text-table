@@ -5,14 +5,16 @@ from __future__ import annotations
 import os
 import tempfile
 
-import pytest
-
 import json
+from dataclasses import dataclass
+
+import pytest
 
 from philiprehberger_text_table import (
     column_widths,
     from_csv,
     from_csv_string,
+    from_dataclasses,
     from_dicts,
     from_json,
     from_json_string,
@@ -426,3 +428,270 @@ class TestColumnWidths:
     def test_missing_cells_treated_as_empty(self) -> None:
         widths = column_widths(["a", "bb", "ccc"], [["x"]])
         assert widths == [1, 2, 3]
+
+
+FRUIT_HEADERS = ["Item", "Qty", "Price"]
+FRUIT_ROWS: list[list[object]] = [["Apple", 3, 1.5], ["Banana", 12, 0.25]]
+FRUIT_FOOTER = ["Total", 15, ""]
+
+
+class TestTitleAndFooter:
+    def test_unicode_title_and_footer(self) -> None:
+        result = table(FRUIT_HEADERS, FRUIT_ROWS, title="Fruit Stand", footer=FRUIT_FOOTER)
+        assert result == (
+            "\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n"
+            "\u2502     Fruit Stand      \u2502\n"
+            "\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n"
+            "\u2502 Item   \u2502 Qty \u2502 Price \u2502\n"
+            "\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n"
+            "\u2502 Apple  \u2502   3 \u2502   1.5 \u2502\n"
+            "\u2502 Banana \u2502  12 \u2502  0.25 \u2502\n"
+            "\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n"
+            "\u2502 Total  \u2502  15 \u2502       \u2502\n"
+            "\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518"
+        )
+
+    def test_ascii_title_and_footer(self) -> None:
+        result = table(
+            FRUIT_HEADERS, FRUIT_ROWS, style="ascii", title="Fruit Stand", footer=FRUIT_FOOTER
+        )
+        assert result == (
+            "+----------------------+\n"
+            "|     Fruit Stand      |\n"
+            "+--------+-----+-------+\n"
+            "| Item   | Qty | Price |\n"
+            "+--------+-----+-------+\n"
+            "| Apple  |   3 |   1.5 |\n"
+            "| Banana |  12 |  0.25 |\n"
+            "+--------+-----+-------+\n"
+            "| Total  |  15 |       |\n"
+            "+--------+-----+-------+"
+        )
+
+    def test_markdown_title_and_footer(self) -> None:
+        result = table(
+            FRUIT_HEADERS, FRUIT_ROWS, style="markdown", title="Fruit Stand", footer=FRUIT_FOOTER
+        )
+        assert result == (
+            "Fruit Stand\n"
+            "\n"
+            "| Item   | Qty | Price |\n"
+            "| ------ | --: | ----: |\n"
+            "| Apple  |   3 |   1.5 |\n"
+            "| Banana |  12 |  0.25 |\n"
+            "| Total  |  15 |       |"
+        )
+
+    def test_minimal_title_and_footer(self) -> None:
+        result = table(
+            FRUIT_HEADERS, FRUIT_ROWS, style="minimal", title="Fruit Stand", footer=FRUIT_FOOTER
+        )
+        assert result == (
+            "   Fruit Stand    \n"
+            "Item    Qty  Price\n"
+            "------  ---  -----\n"
+            "Apple     3    1.5\n"
+            "Banana   12   0.25\n"
+            "------  ---  -----\n"
+            "Total    15       "
+        )
+
+    def test_compact_title_and_footer(self) -> None:
+        result = table(
+            FRUIT_HEADERS, FRUIT_ROWS, style="compact", title="Fruit Stand", footer=FRUIT_FOOTER
+        )
+        assert result == (
+            "     Fruit Stand      \n"
+            "----------------------\n"
+            " Item   | Qty | Price \n"
+            "--------+-----+-------\n"
+            " Apple  |   3 |   1.5 \n"
+            " Banana |  12 |  0.25 \n"
+            "--------+-----+-------\n"
+            " Total  |  15 |       "
+        )
+
+    def test_double_title_uses_tee_joints(self) -> None:
+        lines = table(["A", "B"], [["x", "y"]], style="double", title="T").split("\n")
+        assert lines[0] == "\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557"
+        assert lines[1] == "\u2551   T   \u2551"
+        assert lines[2] == "\u2560\u2550\u2550\u2550\u2566\u2550\u2550\u2550\u2563"
+
+    def test_title_only_ascii(self) -> None:
+        result = table(["A", "B"], [["x", "y"]], style="ascii", title="Hi")
+        assert result == (
+            "+-------+\n"
+            "|   Hi  |\n"
+            "+---+---+\n"
+            "| A | B |\n"
+            "+---+---+\n"
+            "| x | y |\n"
+            "+---+---+"
+        )
+
+    def test_long_title_widens_last_column(self) -> None:
+        result = table(["A", "B"], [["x", "y"]], style="ascii", title="A long title")
+        assert result == (
+            "+--------------+\n"
+            "| A long title |\n"
+            "+---+----------+\n"
+            "| A | B        |\n"
+            "+---+----------+\n"
+            "| x | y        |\n"
+            "+---+----------+"
+        )
+
+    def test_title_truncated_by_max_width(self) -> None:
+        result = table(["A", "B"], [["x", "y"]], style="ascii", title="A long title", max_width=8)
+        assert result.split("\n")[1] == "| A lon... |"
+
+    def test_footer_only_ascii(self) -> None:
+        result = table(["Name", "N"], [["a", 1]], style="ascii", footer=["Sum", 1])
+        assert result == (
+            "+------+---+\n"
+            "| Name | N |\n"
+            "+------+---+\n"
+            "| a    | 1 |\n"
+            "+------+---+\n"
+            "| Sum  | 1 |\n"
+            "+------+---+"
+        )
+
+    def test_footer_widens_column(self) -> None:
+        result = table(["A"], [["x"]], style="minimal", footer=["Grand total"])
+        assert result == "A          \n-----------\nx          \n-----------\nGrand total"
+
+    def test_footer_truncated_by_max_width(self) -> None:
+        result = table(["A"], [["x"]], style="minimal", footer=["Grand total"], max_width=6)
+        assert result.split("\n")[-1] == "Gra..."
+
+    def test_footer_accepts_tuple(self) -> None:
+        result = table(["A", "B"], [["x", 1]], footer=("t", 1))
+        assert "\u2502 t \u2502 1 \u2502" in result
+
+    def test_footer_length_mismatch_raises(self) -> None:
+        with pytest.raises(ValueError, match="footer length"):
+            table(["A", "B"], [["x", "y"]], footer=["only one"])
+
+    def test_footer_does_not_change_auto_alignment(self) -> None:
+        result = table(["Item", "Qty"], [["a", 3]], style="markdown", footer=["Total", 3])
+        assert result.split("\n")[1] == "| ----- | --: |"
+
+    def test_from_dicts_title_and_footer(self) -> None:
+        data = [{"name": "Alice", "score": 95}, {"name": "Bob", "score": 87}]
+        result = from_dicts(data, style="ascii", title="Scores", footer=["Avg", 91])
+        assert result == (
+            "+---------------+\n"
+            "|     Scores    |\n"
+            "+-------+-------+\n"
+            "| name  | score |\n"
+            "+-------+-------+\n"
+            "| Alice |    95 |\n"
+            "| Bob   |    87 |\n"
+            "+-------+-------+\n"
+            "| Avg   |    91 |\n"
+            "+-------+-------+"
+        )
+
+    def test_from_csv_string_title(self) -> None:
+        result = from_csv_string("A,B\nx,y", style="markdown", title="CSV")
+        assert result.startswith("CSV\n\n| A | B |")
+
+    def test_from_csv_footer(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        path = tmp_path / "d.csv"
+        path.write_text("A,B\nx,y\n", encoding="utf-8")
+        result = from_csv(str(path), style="minimal", footer=["f", "g"])
+        assert result.split("\n")[-1] == "f  g"
+
+    def test_from_json_string_title_and_footer(self) -> None:
+        result = from_json_string(
+            '[["A","B"],["x","y"]]', style="minimal", title="J", footer=["1", "2"]
+        )
+        assert result == " J  \nA  B\n-  -\nx  y\n-  -\n1  2"
+
+    def test_from_json_footer(self, tmp_path) -> None:  # type: ignore[no-untyped-def]
+        path = tmp_path / "d.json"
+        path.write_text('[{"a": 1}]', encoding="utf-8")
+        result = from_json(path, style="minimal", footer=[9])
+        assert result == "a\n-\n1\n-\n9"
+
+    def test_all_styles_render_title_and_footer(self) -> None:
+        for style in ("unicode", "rounded", "double", "ascii", "markdown", "minimal", "compact"):
+            result = table(["H"], [["v"]], style=style, title="T", footer=["f"])
+            assert "T" in result
+            assert "f" in result
+
+
+@dataclass
+class Person:
+    name: str
+    age: int
+
+
+@dataclass
+class Employee:
+    name: str
+    team: str
+
+
+class TestFromDataclasses:
+    def test_basic_ascii(self) -> None:
+        result = from_dataclasses([Person("Alice", 30), Person("Bob", 25)], style="ascii")
+        assert result == (
+            "+-------+-----+\n"
+            "| name  | age |\n"
+            "+-------+-----+\n"
+            "| Alice |  30 |\n"
+            "| Bob   |  25 |\n"
+            "+-------+-----+"
+        )
+
+    def test_title_and_footer(self) -> None:
+        result = from_dataclasses(
+            [Person("Alice", 30), Person("Bob", 25)],
+            style="markdown",
+            title="People",
+            footer=["Total", 55],
+        )
+        assert result == (
+            "People\n"
+            "\n"
+            "| name  | age |\n"
+            "| ----- | --: |\n"
+            "| Alice |  30 |\n"
+            "| Bob   |  25 |\n"
+            "| Total |  55 |"
+        )
+
+    def test_empty_list(self) -> None:
+        assert from_dataclasses([]) == ""
+        assert from_dataclasses([]) == from_dicts([])
+
+    def test_non_dataclass_raises(self) -> None:
+        with pytest.raises(TypeError, match="dataclass instances"):
+            from_dataclasses([{"name": "Alice"}])
+
+    def test_dataclass_class_raises(self) -> None:
+        with pytest.raises(TypeError, match="dataclass instances"):
+            from_dataclasses([Person])
+
+    def test_mixed_dataclasses_merge_fields(self) -> None:
+        result = from_dataclasses([Person("Alice", 30), Employee("Bob", "Ops")], style="minimal")
+        assert result == (
+            "name   age  team\n"
+            "-----  ---  ----\n"
+            "Alice  30       \n"
+            "Bob         Ops "
+        )
+
+    def test_with_align_and_max_width(self) -> None:
+        result = from_dataclasses(
+            [Person("Alexandria", 30)], style="minimal", align="left", max_width=6
+        )
+        assert result == "name    age\n------  ---\nAle...  30 "
+
+
+def test_from_dataclasses_exported() -> None:
+    import philiprehberger_text_table as mod
+
+    assert "from_dataclasses" in mod.__all__

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0 (2026-10-30)
+
+- Add `title=` keyword to `table()` and every `from_*` renderer: a caption centered across the full table width (a plain line above the table for `"markdown"`)
+- Add `footer=` keyword for a summary row (e.g. totals) rendered below a separator line in the current style; it counts toward column widths and must match the header count
+- Add `from_dataclasses()` for rendering a list of dataclass instances (field names become headers)
+- Add trailing period to the `pyproject.toml` description so it matches the README
+- Convert the README styles and alignments notes into tables
+
 ## 0.5.0 (2026-07-15)
 
 - Add `"double"` style with double-line box-drawing borders (╔ ═ ╗ ║ ╠ ╣ ╚ ╝)

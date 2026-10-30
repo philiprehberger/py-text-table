@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import csv
+import dataclasses
 import io
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 __all__ = [
     "table",
     "from_dicts",
+    "from_dataclasses",
     "from_csv",
     "from_csv_string",
     "from_json",
@@ -167,49 +169,13 @@ def _truncate(value: Any, max_width: int) -> str:
     return text[: max_width - 3] + "..."
 
 
-def table(
-    headers: list[str],
+def _resolve_alignments(
+    align: str | list[str] | None,
     rows: list[list[Any]],
-    *,
-    style: str = "unicode",
-    max_width: int | None = None,
-    align: str | list[str] | None = None,
-) -> str:
-    """Render a table string from headers and rows.
-
-    Args:
-        headers: Column header strings.
-        rows: List of rows, each a list of cell values.
-        style: Table style — "unicode", "rounded", "double", "ascii", "markdown", "minimal", or "compact".
-        max_width: Optional maximum width per cell. Cells exceeding this are truncated
-            with "..." appended.
-        align: Column alignment override. A single string ("left", "right", "center")
-            applies to all columns. A list of strings sets alignment per column.
-            When ``None`` (default), numeric columns are right-aligned and others
-            are left-aligned.
-
-    Returns:
-        A formatted table string.
-    """
+    col_count: int,
+) -> list[str]:
+    """Resolve the per-column alignment list."""
     _valid_alignments = {"left", "right", "center"}
-
-    if style not in _STYLES:
-        raise ValueError(
-            f"Unknown style {style!r}. Choose from: {', '.join(_STYLES)}"
-        )
-
-    s = _STYLES[style]
-
-    # Apply truncation if max_width is set
-    if max_width is not None:
-        headers = [_truncate(h, max_width) for h in headers]
-        rows = [[_truncate(cell, max_width) for cell in row] for row in rows]
-
-    widths = _calculate_widths(headers, rows)
-
-    col_count = len(headers)
-
-    # Determine alignment per column
     if align is None:
         # Auto-detect: right for numeric columns, left otherwise
         alignments: list[str] = []
@@ -219,52 +185,136 @@ def table(
                 alignments.append("right")
             else:
                 alignments.append("left")
-    elif isinstance(align, str):
+        return alignments
+    if isinstance(align, str):
         if align not in _valid_alignments:
             raise ValueError(
                 f"Unknown alignment {align!r}. Choose from: {', '.join(sorted(_valid_alignments))}"
             )
-        alignments = [align] * col_count
-    else:
-        if len(align) != col_count:
+        return [align] * col_count
+    if len(align) != col_count:
+        raise ValueError(
+            f"align list length ({len(align)}) must match header count ({col_count})"
+        )
+    for a in align:
+        if a not in _valid_alignments:
             raise ValueError(
-                f"align list length ({len(align)}) must match header count ({col_count})"
+                f"Unknown alignment {a!r}. Choose from: {', '.join(sorted(_valid_alignments))}"
             )
-        for a in align:
-            if a not in _valid_alignments:
-                raise ValueError(
-                    f"Unknown alignment {a!r}. Choose from: {', '.join(sorted(_valid_alignments))}"
-                )
-        alignments = list(align)
+    return list(align)
+
+
+def table(
+    headers: list[str],
+    rows: list[list[Any]],
+    *,
+    style: str = "unicode",
+    max_width: int | None = None,
+    align: str | list[str] | None = None,
+    title: str | None = None,
+    footer: Sequence[Any] | None = None,
+) -> str:
+    """Render a table string from headers and rows.
+
+    Args:
+        headers: Column header strings.
+        rows: List of rows, each a list of cell values.
+        style: Table style — "unicode", "rounded", "double", "ascii", "markdown", "minimal", or "compact".
+        max_width: Optional maximum width per cell. Cells exceeding this are truncated
+            with "..." appended. The title and footer cells are truncated the same way.
+        align: Column alignment override. A single string ("left", "right", "center")
+            applies to all columns. A list of strings sets alignment per column.
+            When ``None`` (default), numeric columns are right-aligned and others
+            are left-aligned.
+        title: Optional caption centered across the full table width above the
+            header. If it is wider than the table, the last column is widened to
+            fit. For ``"markdown"`` it is emitted as a plain line followed by a
+            blank line above the table.
+        footer: Optional summary row (e.g. totals) with one cell per header. It
+            counts toward column widths, uses each column's alignment, and is
+            separated from the body by a separator line in the current style
+            (for ``"markdown"``, which allows only one delimiter row, it is
+            rendered as the final row with no extra separator).
+
+    Returns:
+        A formatted table string.
+
+    Raises:
+        ValueError: If *style* or *align* is invalid, or *footer* length does
+            not match the header count.
+    """
+    if style not in _STYLES:
+        raise ValueError(
+            f"Unknown style {style!r}. Choose from: {', '.join(_STYLES)}"
+        )
+
+    s = _STYLES[style]
+    col_count = len(headers)
+
+    footer_row: list[Any] | None = None
+    if footer is not None:
+        footer_row = list(footer)
+        if len(footer_row) != col_count:
+            raise ValueError(
+                f"footer length ({len(footer_row)}) must match header count ({col_count})"
+            )
+
+    # Apply truncation if max_width is set
+    if max_width is not None:
+        headers = [_truncate(h, max_width) for h in headers]
+        rows = [[_truncate(cell, max_width) for cell in row] for row in rows]
+        if footer_row is not None:
+            footer_row = [_truncate(cell, max_width) for cell in footer_row]
+        if title is not None:
+            title = _truncate(title, max_width)
+
+    widths = _calculate_widths(
+        headers, rows + ([footer_row] if footer_row is not None else [])
+    )
+
+    alignments = _resolve_alignments(align, rows, col_count)
+
+    def _cells(row: list[Any]) -> list[str]:
+        return [
+            _format_cell(row[i] if i < len(row) else "", widths[i], alignments[i])
+            for i in range(col_count)
+        ]
+
+    def _padded(row: list[Any]) -> list[str]:
+        return [" " + c + " " for c in _cells(row)]
+
+    # Widen the last column so a long title fits (not for markdown, whose
+    # title is a free-standing line).
+    if title is not None and style != "markdown" and widths:
+        if style == "minimal":
+            inner = sum(widths) + 2 * (len(widths) - 1)
+        else:
+            inner = sum(w + 2 for w in widths) + (len(widths) - 1) - 2
+        if len(title) > inner:
+            widths[-1] += len(title) - inner
 
     lines: list[str] = []
 
     if style == "minimal":
-        # Header row
-        cells = [
-            _format_cell(headers[i], widths[i], alignments[i])
-            for i in range(col_count)
-        ]
-        lines.append("  ".join(cells))
-        # Separator
-        lines.append("  ".join("-" * w for w in widths))
-        # Data rows
+        if title is not None:
+            total = sum(widths) + 2 * (len(widths) - 1)
+            lines.append(title.center(total))
+        lines.append("  ".join(_cells(headers)))
+        sep = "  ".join("-" * w for w in widths)
+        lines.append(sep)
         for row in rows:
-            cells = [
-                _format_cell(row[i] if i < len(row) else "", widths[i], alignments[i])
-                for i in range(col_count)
-            ]
-            lines.append("  ".join(cells))
+            lines.append("  ".join(_cells(row)))
+        if footer_row is not None:
+            lines.append(sep)
+            lines.append("  ".join(_cells(footer_row)))
         return "\n".join(lines)
 
     if style == "markdown":
-        # Header row
-        cells = [
-            " " + _format_cell(headers[i], widths[i], alignments[i]) + " "
-            for i in range(col_count)
-        ]
-        lines.append(s["vertical"] + s["vertical"].join(cells) + s["vertical"])
-        # Separator row
+        if title is not None:
+            lines.append(title)
+            lines.append("")
+        v = s["vertical"]
+        lines.append(v + v.join(_padded(headers)) + v)
         sep_cells: list[str] = []
         for i in range(col_count):
             if alignments[i] == "right":
@@ -273,72 +323,51 @@ def table(
                 sep_cells.append(" :" + s["horizontal"] * (widths[i] - 2) + ":" + " ")
             else:
                 sep_cells.append(" " + s["horizontal"] * widths[i] + " ")
-        lines.append(s["vertical"] + s["vertical"].join(sep_cells) + s["vertical"])
-        # Data rows
+        lines.append(v + v.join(sep_cells) + v)
         for row in rows:
-            cells = [
-                " "
-                + _format_cell(
-                    row[i] if i < len(row) else "", widths[i], alignments[i]
-                )
-                + " "
-                for i in range(col_count)
-            ]
-            lines.append(s["vertical"] + s["vertical"].join(cells) + s["vertical"])
+            lines.append(v + v.join(_padded(row)) + v)
+        if footer_row is not None:
+            lines.append(v + v.join(_padded(footer_row)) + v)
         return "\n".join(lines)
 
-    # Build horizontal separator lines
+    segments = [s["horizontal"] * (w + 2) for w in widths]
+
     def _h_line(left: str, mid: str, right: str) -> str:
-        segments = [s["horizontal"] * (w + 2) for w in widths]
         return left + mid.join(segments) + right
 
     if style == "compact":
         # No outer borders — compact style
-        # Header row
-        cells = [
-            " " + _format_cell(headers[i], widths[i], alignments[i]) + " "
-            for i in range(col_count)
-        ]
-        lines.append(s["vertical"].join(cells))
-        # Separator
-        sep_parts = [s["horizontal"] * (w + 2) for w in widths]
-        lines.append(s["cross"].join(sep_parts))
-        # Data rows
+        v = s["vertical"]
+        if title is not None:
+            total = sum(w + 2 for w in widths) + (len(widths) - 1)
+            lines.append(" " + title.center(max(total - 2, 0)) + " ")
+            lines.append(s["horizontal"] * total)
+        lines.append(v.join(_padded(headers)))
+        sep = s["cross"].join(segments)
+        lines.append(sep)
         for row in rows:
-            cells = [
-                " "
-                + _format_cell(
-                    row[i] if i < len(row) else "", widths[i], alignments[i]
-                )
-                + " "
-                for i in range(col_count)
-            ]
-            lines.append(s["vertical"].join(cells))
+            lines.append(v.join(_padded(row)))
+        if footer_row is not None:
+            lines.append(sep)
+            lines.append(v.join(_padded(footer_row)))
         return "\n".join(lines)
 
-    # Unicode and ASCII styles (full borders)
-    # Top border
-    lines.append(_h_line(s["top_left"], s["top_mid"], s["top_right"]))
-    # Header row
-    cells = [
-        " " + _format_cell(headers[i], widths[i], alignments[i]) + " "
-        for i in range(col_count)
-    ]
-    lines.append(s["vertical"] + s["vertical"].join(cells) + s["vertical"])
-    # Header separator
+    # Full-border styles (unicode, rounded, double, ascii)
+    v = s["vertical"]
+    if title is not None:
+        span = sum(w + 2 for w in widths) + (len(widths) - 1)
+        lines.append(s["top_left"] + s["horizontal"] * span + s["top_right"])
+        lines.append(v + " " + title.center(max(span - 2, 0)) + " " + v)
+        lines.append(_h_line(s["mid_left"], s["top_mid"], s["mid_right"]))
+    else:
+        lines.append(_h_line(s["top_left"], s["top_mid"], s["top_right"]))
+    lines.append(v + v.join(_padded(headers)) + v)
     lines.append(_h_line(s["mid_left"], s["mid_mid"], s["mid_right"]))
-    # Data rows
     for row in rows:
-        cells = [
-            " "
-            + _format_cell(
-                row[i] if i < len(row) else "", widths[i], alignments[i]
-            )
-            + " "
-            for i in range(col_count)
-        ]
-        lines.append(s["vertical"] + s["vertical"].join(cells) + s["vertical"])
-    # Bottom border
+        lines.append(v + v.join(_padded(row)) + v)
+    if footer_row is not None:
+        lines.append(_h_line(s["mid_left"], s["mid_mid"], s["mid_right"]))
+        lines.append(v + v.join(_padded(footer_row)) + v)
     lines.append(_h_line(s["bot_left"], s["bot_mid"], s["bot_right"]))
 
     return "\n".join(lines)
@@ -350,6 +379,8 @@ def from_dicts(
     style: str = "unicode",
     max_width: int | None = None,
     align: str | list[str] | None = None,
+    title: str | None = None,
+    footer: Sequence[Any] | None = None,
 ) -> str:
     """Render a table from a list of dictionaries.
 
@@ -361,6 +392,8 @@ def from_dicts(
         style: Table style.
         max_width: Optional maximum cell width.
         align: Column alignment override (see :func:`table`).
+        title: Optional caption above the table (see :func:`table`).
+        footer: Optional summary row below the body (see :func:`table`).
 
     Returns:
         A formatted table string.
@@ -374,7 +407,51 @@ def from_dicts(
                 seen[key] = None
     headers = list(seen)
     rows = [[d.get(h, "") for h in headers] for d in data]
-    return table(headers, rows, style=style, max_width=max_width, align=align)
+    return table(
+        headers, rows, style=style, max_width=max_width, align=align, title=title, footer=footer
+    )
+
+
+def from_dataclasses(
+    items: Sequence[Any],
+    *,
+    style: str = "unicode",
+    max_width: int | None = None,
+    align: str | list[str] | None = None,
+    title: str | None = None,
+    footer: Sequence[Any] | None = None,
+) -> str:
+    """Render a table from a sequence of dataclass instances.
+
+    Field names (from :func:`dataclasses.fields`) become the headers, in
+    declaration order. When instances of different dataclasses are mixed,
+    fields are merged in first-seen order and missing values render as ``""``.
+    Values are read with ``getattr`` (nested dataclasses are not expanded).
+
+    Args:
+        items: Dataclass instances.
+        style: Table style.
+        max_width: Optional maximum cell width.
+        align: Column alignment override (see :func:`table`).
+        title: Optional caption above the table (see :func:`table`).
+        footer: Optional summary row below the body (see :func:`table`).
+
+    Returns:
+        A formatted table string, or ``""`` when *items* is empty.
+
+    Raises:
+        TypeError: If any item is not a dataclass instance.
+    """
+    data: list[dict[str, Any]] = []
+    for item in items:
+        if not dataclasses.is_dataclass(item) or isinstance(item, type):
+            raise TypeError(
+                f"from_dataclasses() expects dataclass instances, got {type(item).__name__}"
+            )
+        data.append({f.name: getattr(item, f.name) for f in dataclasses.fields(item)})
+    return from_dicts(
+        data, style=style, max_width=max_width, align=align, title=title, footer=footer
+    )
 
 
 def from_csv(
@@ -383,6 +460,8 @@ def from_csv(
     style: str = "unicode",
     max_width: int | None = None,
     align: str | list[str] | None = None,
+    title: str | None = None,
+    footer: Sequence[Any] | None = None,
 ) -> str:
     """Read a CSV file and render it as a table.
 
@@ -393,6 +472,8 @@ def from_csv(
         style: Table style.
         max_width: Optional maximum cell width.
         align: Column alignment override (see :func:`table`).
+        title: Optional caption above the table (see :func:`table`).
+        footer: Optional summary row below the body (see :func:`table`).
 
     Returns:
         A formatted table string.
@@ -402,7 +483,9 @@ def from_csv(
         rows_iter = iter(reader)
         headers = next(rows_iter)
         rows = list(rows_iter)
-    return table(headers, rows, style=style, max_width=max_width, align=align)
+    return table(
+        headers, rows, style=style, max_width=max_width, align=align, title=title, footer=footer
+    )
 
 
 def from_csv_string(
@@ -411,6 +494,8 @@ def from_csv_string(
     style: str = "unicode",
     max_width: int | None = None,
     align: str | list[str] | None = None,
+    title: str | None = None,
+    footer: Sequence[Any] | None = None,
 ) -> str:
     """Render a table from CSV-formatted string content.
 
@@ -421,6 +506,8 @@ def from_csv_string(
         style: Table style.
         max_width: Optional maximum cell width.
         align: Column alignment override (see :func:`table`).
+        title: Optional caption above the table (see :func:`table`).
+        footer: Optional summary row below the body (see :func:`table`).
 
     Returns:
         A formatted table string.
@@ -429,7 +516,9 @@ def from_csv_string(
     rows_iter = iter(reader)
     headers = next(rows_iter)
     rows = list(rows_iter)
-    return table(headers, rows, style=style, max_width=max_width, align=align)
+    return table(
+        headers, rows, style=style, max_width=max_width, align=align, title=title, footer=footer
+    )
 
 
 def _render_json_payload(
@@ -438,15 +527,21 @@ def _render_json_payload(
     style: str,
     max_width: int | None,
     align: str | list[str] | None,
+    title: str | None,
+    footer: Sequence[Any] | None,
 ) -> str:
     if isinstance(payload, list) and all(isinstance(item, dict) for item in payload):
-        return from_dicts(payload, style=style, max_width=max_width, align=align)
+        return from_dicts(
+            payload, style=style, max_width=max_width, align=align, title=title, footer=footer
+        )
     if isinstance(payload, list) and all(isinstance(item, list) for item in payload):
         if not payload:
             return ""
         headers = [str(h) for h in payload[0]]
         rows = [list(row) for row in payload[1:]]
-        return table(headers, rows, style=style, max_width=max_width, align=align)
+        return table(
+            headers, rows, style=style, max_width=max_width, align=align, title=title, footer=footer
+        )
     raise ValueError(
         "Unsupported JSON shape: expected a list of dicts or a list of lists"
     )
@@ -458,6 +553,8 @@ def from_json(
     style: str = "unicode",
     max_width: int | None = None,
     align: str | list[str] | None = None,
+    title: str | None = None,
+    footer: Sequence[Any] | None = None,
 ) -> str:
     """Read a JSON file and render it as a table.
 
@@ -469,6 +566,8 @@ def from_json(
         style: Table style.
         max_width: Optional maximum cell width.
         align: Column alignment override (see :func:`table`).
+        title: Optional caption above the table (see :func:`table`).
+        footer: Optional summary row below the body (see :func:`table`).
 
     Returns:
         A formatted table string.
@@ -477,7 +576,9 @@ def from_json(
         ValueError: If the JSON payload is neither a list of dicts nor a list of lists.
     """
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    return _render_json_payload(payload, style=style, max_width=max_width, align=align)
+    return _render_json_payload(
+        payload, style=style, max_width=max_width, align=align, title=title, footer=footer
+    )
 
 
 def from_json_string(
@@ -486,6 +587,8 @@ def from_json_string(
     style: str = "unicode",
     max_width: int | None = None,
     align: str | list[str] | None = None,
+    title: str | None = None,
+    footer: Sequence[Any] | None = None,
 ) -> str:
     """Render a table from JSON-formatted string content.
 
@@ -496,6 +599,8 @@ def from_json_string(
         style: Table style.
         max_width: Optional maximum cell width.
         align: Column alignment override (see :func:`table`).
+        title: Optional caption above the table (see :func:`table`).
+        footer: Optional summary row below the body (see :func:`table`).
 
     Returns:
         A formatted table string.
@@ -504,7 +609,9 @@ def from_json_string(
         ValueError: If the JSON payload is neither a list of dicts nor a list of lists.
     """
     payload = json.loads(text)
-    return _render_json_payload(payload, style=style, max_width=max_width, align=align)
+    return _render_json_payload(
+        payload, style=style, max_width=max_width, align=align, title=title, footer=footer
+    )
 
 
 def to_csv(
